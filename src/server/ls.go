@@ -1,7 +1,6 @@
 package server
 
 import (
-	"connpool"
 	"log"
 	"net"
 )
@@ -11,19 +10,6 @@ type LocalService struct {
 	Host string
 	// 远程地址
 	RemoteHost string
-	// 连接池连接数目
-	ConnecterN int
-	// 连接池
-	Pool connpool.ConnPool
-}
-
-type Brower struct {
-	// 浏览器连接
-	BrowerConn net.Conn
-	// 远程服务器连接
-	RemoteConn net.Conn
-	// LocalService 结构
-	Ls *LocalService
 }
 
 // 初始化本地服务
@@ -34,26 +20,20 @@ func InitLocalServer(ls *LocalService) error {
 	}
 	for {
 		conn, err := listener.Accept()
-		log.Println("一个连接进入")
 		if err != nil {
 			log.Fatal(err)
 		}
-		brower := &Brower{
-			BrowerConn: conn,
-			Ls:         ls,
-		}
-		go localserveracceptProc(brower)
+		go localserveracceptProc(conn, ls)
 	}
 }
 
 // accpet处理函数
-func localserveracceptProc(brower *Brower) {
-	remoteConn, err := brower.Ls.Pool.Get()
-	log.Println("取得一个远程连接")
+func localserveracceptProc(b net.Conn, ls *LocalService) {
+	remoteConn, err := net.Dial("tcp", ls.RemoteHost)
 	if err != nil {
-		log.Fatal(err)
+		b.Close()
+		return
 	}
-	brower.RemoteConn = remoteConn
-	go LocalReader(brower)
-	go LocalWriter(brower)
+	go LocalReader(ls, b, remoteConn)
+	go LocalWriter(ls, b, remoteConn)
 }

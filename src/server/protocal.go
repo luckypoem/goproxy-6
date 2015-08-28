@@ -1,282 +1,189 @@
 package server
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
-	"log"
 	"net"
+	"strconv"
 )
 
 const (
-	// 协议状态头的长度
-	STATUS_HEAD_LEN = 1
 	// 数据体的长度
 	DATA_LEN = 1024
-	// 协议缓冲区长度
-	BUFFER_LEN = STATUS_HEAD_LEN + DATA_LEN
 )
 
-// sock5协议解析错误
-var SOCK5_PROTO_ERR = errors.New("sock5协议解析错误")
+var (
+	// sock5协议解析错误
+	SOCK5_PROTO_ERR = errors.New("sock5协议解析错误")
+)
 
-func Pack(b []byte, n int) {
-	if len(b) < n {
+func Pack(b []byte) {
+	if len(b) <= 0 {
 		return
 	}
-	for i := 0; i < n; i++ {
+	for i := 0; i < len(b); i++ {
 		b[i]++
 	}
 }
 
-func Unpack(b []byte, n int) {
-	if len(b) < n {
+func Unpack(b []byte) {
+	if len(b) <= 0 {
 		return
 	}
-	for i := 0; i < n; i++ {
+	for i := 0; i < len(b); i++ {
 		b[i]--
 	}
 }
 
-func LocalReader(b *Brower) {
-	log.Println("LocalReader")
+func LocalReader(ls *LocalService, b net.Conn, r net.Conn) {
 	defer func() {
-		log.Println("LocalReader 关闭连接")
-		b.BrowerConn.Close()
-		if !b.Ls.Pool.IsMember(b.RemoteConn) {
-			b.Ls.Pool.Put(b.RemoteConn)
-			log.Println("LocalReader 连接放回")
-		}
+		b.Close()
+		r.Close()
 	}()
 
-	var buffer [BUFFER_LEN]byte
-	data := buffer[STATUS_HEAD_LEN:]
-
+	data := make([]byte, DATA_LEN)
 	for {
-		n0, err0 := b.BrowerConn.Read(data)
-		if err0 != nil {
-			if err0 == io.EOF {
-				buffer[0] = 1 // 完成标志
-				_, err1 := b.RemoteConn.Write(buffer[:])
-				if err1 != nil {
-					log.Println(err1)
-				}
-				return
-			}
-			log.Println(err0)
+		n, err := b.Read(data)
+		if err != nil {
 			return
 		}
-		Pack(data, n0)
-		buffer[0] = 0 // 继续标志
-		_, err2 := b.RemoteConn.Write(buffer[:n0+STATUS_HEAD_LEN])
-		if err2 != nil {
-			log.Println(err2)
-			return
-		}
+		Pack(data[:n])
+		r.Write(data[:n])
 	}
 }
 
-func LocalWriter(b *Brower) {
-	log.Println("LocalReader")
+func LocalWriter(ls *LocalService, b net.Conn, r net.Conn) {
 	defer func() {
-		log.Println("LocalReader 关闭连接")
-		b.BrowerConn.Close()
-		if !b.Ls.Pool.IsMember(b.RemoteConn) {
-			b.Ls.Pool.Put(b.RemoteConn)
-			log.Println("LocalReader 连接放回")
-		}
+		b.Close()
+		r.Close()
 	}()
-
-	var buffer [BUFFER_LEN]byte
-	data := buffer[STATUS_HEAD_LEN:]
-
+	data := make([]byte, DATA_LEN)
 	for {
-		n0, err0 := b.RemoteConn.Read(buffer[:])
-		if err0 != nil {
-			log.Println(err0)
+		n, err := r.Read(data)
+		if err != nil {
 			return
 		}
-		// 关闭标志
-		if buffer[0] == 1 {
-			return
-		}
-		Unpack(data, n0)
-		_, err1 := b.BrowerConn.Write(data[:n0])
-		if err1 != nil {
-			log.Println(err1)
-			return
-		}
+		Unpack(data[:n])
+		b.Write(data[:n])
 	}
 }
 
-func sock5Read(conn net.Conn, buflen int, flag bool) ([]byte, int, error) {
-	if flag {
-		buflen += STATUS_HEAD_LEN
-	}
-	buf := make([]byte, buflen)
-	n, err := conn.Read(buf)
+func generalRead(c net.Conn) ([]byte, error) {
+	buffer := make([]byte, DATA_LEN)
+	n, err := c.Read(buffer)
 	if err != nil {
-		return nil, n, err
+		return nil, err
 	}
-	if flag {
-		if buf[0] == 1 {
-			return nil, n, io.EOF
-		}
-		Unpack(buf[STATUS_HEAD_LEN:], n)
-		return buf[STATUS_HEAD_LEN:], n - STATUS_HEAD_LEN, nil
-	} else {
-		Unpack(buf, n)
-		return buf, n, nil
-	}
+	return buffer[:n], nil
 }
 
-func sock5Write(conn net.Conn, buf []byte, n int) (int, error) {
-	Pack(buf, n)
-	return conn.Write(buf[:n])
+func generalWrite(c net.Conn, buf []byte) error {
+	_, err := c.Write(buf)
+	return err
 }
 
 func Sock5(conn net.Conn) (string, error) {
 	// step1
-	buf0, _, err0 := sock5Read(conn, 3, true)
+	buf0, err0 := generalRead(conn)
 	if err0 != nil {
-		return "", err0
+		return "", SOCK5_PROTO_ERR
 	}
+	Unpack(buf0)
 	if buf0[0] != 0x05 || buf0[1] != 0x01 ||
 		buf0[2] != 0x00 {
-		log.Println(buf0)
-		return "", errors.New("协议错误1")
+		return "", SOCK5_PROTO_ERR
 	}
 	// step2
-	_, err1 := sock5Write(conn, []byte{0x05, 0x00}, 2)
+	buf2 := []byte{0x05, 0x00}
+	Pack(buf2)
+	err1 := generalWrite(conn, buf2)
 	if err1 != nil {
-		return "", err1
+		return "", SOCK5_PROTO_ERR
 	}
 	// step3
-	buf2, _, err2 := sock5Read(conn, 4, true)
-	if err2 != nil {
-		return "", err2
+	buf3, err := generalRead(conn)
+	if err != nil {
+		return "", SOCK5_PROTO_ERR
 	}
-	if buf2[0] != 0x05 || buf2[1] != 0x01 || buf2[2] != 0x00 {
-		return "", errors.New("协议错误2")
+	Unpack(buf3)
+	if buf3[0] != 0x05 || buf3[1] != 0x01 || buf3[2] != 0x00 {
+		return "", SOCK5_PROTO_ERR
 	}
+
 	var host_port string
-	if buf2[3] == 0x03 {
-		hostlenbuf, _, err4 := sock5Read(conn, 1, false)
-		if err4 != nil {
-			return "", err4
-		}
-		hostlen, n5 := binary.Uvarint(hostlenbuf)
+	if buf3[3] == 0x03 { // 主机名
+		hostlen, n5 := binary.Uvarint(buf3[4:5])
 		if n5 <= 0 {
-			return "", errors.New("协议错误3")
+			return "", SOCK5_PROTO_ERR
 		}
-		hostbuf, _, err6 := sock5Read(conn, int(hostlen), false)
-		if err6 != nil {
-			return "", err6
-		}
-
-		host := string(hostbuf)
-
-		portbuf, _, err7 := sock5Read(conn, 2, false)
-		if err7 != nil {
-			return "", err7
-		}
-		port, n6 := binary.Uvarint(portbuf)
-		if n6 <= 0 {
-			return "", errors.New("协议错误4")
-		}
-		host_port = fmt.Sprintf("%s:%d", host, port)
-	} else if buf2[3] == 0x01 {
-		hostbuffer, n, err := sock5Read(conn, 4, false)
-		if err != nil || n != 4 {
-			return "", err
-		}
-
-		ip0, n0 := binary.Uvarint(hostbuffer[0:1])
-		ip1, n1 := binary.Uvarint(hostbuffer[1:2])
-		ip2, n2 := binary.Uvarint(hostbuffer[2:3])
-		ip3, n3 := binary.Uvarint(hostbuffer[3:4])
-
-		if n0 <= 0 || n1 <= 0 || n2 <= 0 || n3 <= 0 {
-			return "", errors.New("协议错误5")
-		}
-
-		host := fmt.Sprintf("%d.%d.%d.%d", ip0, ip1, ip2, ip3)
-
-		portbuf, _, err := sock5Read(conn, 2, false)
+		host := string(buf3[5 : 5+hostlen])
+		var port int16
+		err := binary.Read(
+			bytes.NewBuffer(buf3[5+hostlen:5+hostlen+2]),
+			binary.BigEndian,
+			&port)
 		if err != nil {
-			return "", err
+			return "", SOCK5_PROTO_ERR
 		}
-		port, n := binary.Uvarint(portbuf)
+		host_port = net.JoinHostPort(host, strconv.Itoa(int(port)))
+	} else if buf3[3] == 0x01 { // IP
+		ip := net.IPv4(buf3[4], buf3[5], buf3[6], buf3[7])
+		port, n := binary.Uvarint(buf3[8:10])
 		if n <= 0 {
-			return "", errors.New("协议错误6")
+			return "", SOCK5_PROTO_ERR
 		}
-		host_port = fmt.Sprintf("%s:%d", host, port)
+		host_port = net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 	} else {
-		return "", errors.New("协议错误1")
+		return "", SOCK5_PROTO_ERR
 	}
 	// step4
-	_, err := sock5Write(conn, []byte{0x05, 0x00, 0x00, 0x01}, 4)
-	if err != nil {
-		return "", err
+	rep := []byte{
+		0x05, 0x00, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
-	b2 := [6]byte{}
-	_, err = sock5Write(conn, b2[:], 6)
+	Pack(rep)
+
+	err = generalWrite(conn, rep)
 	if err != nil {
-		return "", err
+		return "", SOCK5_PROTO_ERR
 	}
 	return host_port, nil
 }
 
 func RemoteRead(conn net.Conn, targetconn net.Conn) {
 	defer func() {
+		conn.Close()
 		targetconn.Close()
-		remoteserveracceptProc(conn)
 	}()
-	buffer := make([]byte, BUFFER_LEN)
-	data := buffer[STATUS_HEAD_LEN:]
+
+	data := make([]byte, DATA_LEN)
 	for {
-		n, err := conn.Read(buffer)
-		if err == nil {
-			log.Println(err)
-			return
-		}
-		if buffer[0] == 1 {
-			return
-		}
-		Unpack(data, n-STATUS_HEAD_LEN)
-		_, err = targetconn.Write(data)
+		n, err := conn.Read(data)
 		if err != nil {
-			log.Println(err)
 			return
 		}
+		Unpack(data[:n])
+		targetconn.Write(data[:n])
 	}
 }
 
 func RemoteWriter(conn net.Conn, targetconn net.Conn) {
 	defer func() {
+		conn.Close()
 		targetconn.Close()
 	}()
-	buffer := make([]byte, BUFFER_LEN)
-	data := buffer[STATUS_HEAD_LEN:]
+	data := make([]byte, DATA_LEN)
 	for {
 		n, err := targetconn.Read(data)
 		if err != nil {
-			log.Println(err)
+			if err == io.EOF {
+				return
+			}
 			return
 		}
-		Pack(data, n)
-		buffer[0] = 0
-		_, err = conn.Write(buffer)
-		if err != nil {
-			log.Println(err)
-			return
-		}
+		Pack(data[:n])
+		conn.Write(data[:n])
 	}
-}
-
-func SayBye(conn net.Conn) {
-	var buffer [BUFFER_LEN]byte
-	buffer[0] = 1
-	conn.Write(buffer[:])
 }

@@ -18,7 +18,7 @@ func InitRemoteServer(rs *RemoteService) {
 		conn, err := listener.Accept()
 		if err != nil {
 			conn.Close()
-			log.Println(err)
+			return
 		}
 		go remoteserveracceptProc(conn)
 	}
@@ -28,15 +28,15 @@ func remoteserveracceptProc(conn net.Conn) {
 	// sock5沟通
 	host, err := Sock5(conn)
 	if err != nil {
-		log.Println(err)
+		conn.Close()
 		return
 	}
-	log.Printf("连接到目标服务器 %s", host)
+	log.Println("连接到目标服务器", host)
 	// 连接目标服务器
 	targetconn, err := net.Dial("tcp", host)
 	if err != nil {
-		log.Println(err)
-		SayBye(conn)
+		conn.Close()
+		return
 	}
 	// 数据传输
 	go RemoteRead(conn, targetconn)

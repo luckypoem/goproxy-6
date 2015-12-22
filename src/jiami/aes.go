@@ -59,9 +59,13 @@ func (self *aesSupport) Read() ([]byte, error) {
 		return nil, err
 	}
 	buffer := make([]byte, pkglen)
-	_, err = self.iohandler.Read(buffer)
-	if err != nil {
-		return nil, err
+	var c int16
+	for pkglen > c {
+		n, err := self.iohandler.Read(buffer[c:])
+		if err != nil {
+			return nil, err
+		}
+		c += int16(n)
 	}
 	log.Println("读到：", pkglen, buffer)
 	res, err := self.Decrypt(buffer)
@@ -79,7 +83,6 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-
 	var pkglen int16 = int16(len(ciphertextbuffer))
 	if pkglen <= 0 {
 		return -1, errors.New("Encrypt error")

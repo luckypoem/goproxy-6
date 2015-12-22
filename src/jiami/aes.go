@@ -62,6 +62,7 @@ func (self *aesSupport) Read() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Println(pkglen, buffer)
 	return self.Decrypt(buffer)
 }
 

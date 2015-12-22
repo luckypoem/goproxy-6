@@ -1,6 +1,7 @@
 package server
 
 import (
+	"jiami"
 	"log"
 	"net"
 )
@@ -10,10 +11,15 @@ type LocalService struct {
 	Host string
 	// 远程地址
 	RemoteHost string
+	// aes加密密钥路径
+	AESKeyPath string
+	AESkey     []byte
 }
 
 // 初始化本地服务
 func InitLocalServer(ls *LocalService) error {
+	// 初始化AES加密机制
+	ls.AESkey = jiami.LoadAesKeyFile(ls.AESKeyPath)
 	listener, err := net.Listen("tcp", ls.Host)
 	if err != nil {
 		log.Println(err)
@@ -34,6 +40,7 @@ func localserveracceptProc(b net.Conn, ls *LocalService) {
 		b.Close()
 		return
 	}
-	go LocalReader(ls, b, remoteConn)
-	go LocalWriter(ls, b, remoteConn)
+	stream := jiami.NewAES(ls.AESkey, remoteConn)
+	go LocalReader(ls, b, stream)
+	go LocalWriter(ls, b, stream)
 }

@@ -1,15 +1,19 @@
 package server
 
 import (
+	"jiami"
 	"log"
 	"net"
 )
 
 type RemoteService struct {
-	Host string
+	Host       string
+	AESKeyPath string
+	AESkey     []byte
 }
 
 func InitRemoteServer(rs *RemoteService) {
+	rs.AESkey = jiami.LoadAesKeyFile(rs.AESKeyPath)
 	listener, err := net.Listen("tcp", rs.Host)
 	if err != nil {
 		log.Fatal(err)
@@ -20,11 +24,11 @@ func InitRemoteServer(rs *RemoteService) {
 			conn.Close()
 			return
 		}
-		go remoteserveracceptProc(conn)
+		go remoteserveracceptProc(jiami.NewAES(rs.AESkey, conn))
 	}
 }
 
-func remoteserveracceptProc(conn net.Conn) {
+func remoteserveracceptProc(conn jiami.CryptoStream) {
 	// sock5沟通
 	host, err := Sock5(conn)
 	if err != nil {

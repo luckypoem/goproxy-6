@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"jiami"
 	"net"
 	"strconv"
 )
@@ -19,25 +20,7 @@ var (
 	SOCK5_PROTO_ERR = errors.New("sock5协议解析错误")
 )
 
-func Pack(b []byte) {
-	if len(b) <= 0 {
-		return
-	}
-	for i := 0; i < len(b); i++ {
-		b[i]++
-	}
-}
-
-func Unpack(b []byte) {
-	if len(b) <= 0 {
-		return
-	}
-	for i := 0; i < len(b); i++ {
-		b[i]--
-	}
-}
-
-func LocalReader(ls *LocalService, b net.Conn, r net.Conn) {
+func LocalReader(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 	defer func() {
 		b.Close()
 		r.Close()
@@ -49,55 +32,49 @@ func LocalReader(ls *LocalService, b net.Conn, r net.Conn) {
 		if err != nil {
 			return
 		}
-		Pack(data[:n])
 		r.Write(data[:n])
 	}
 }
 
-func LocalWriter(ls *LocalService, b net.Conn, r net.Conn) {
+func LocalWriter(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 	defer func() {
 		b.Close()
 		r.Close()
 	}()
-	data := make([]byte, DATA_LEN)
 	for {
-		n, err := r.Read(data)
+		data, err := r.Read()
 		if err != nil {
 			return
 		}
-		Unpack(data[:n])
-		b.Write(data[:n])
+		b.Write(data)
 	}
 }
 
-func generalRead(c net.Conn) ([]byte, error) {
-	buffer := make([]byte, DATA_LEN)
-	n, err := c.Read(buffer)
+func generalRead(c jiami.CryptoStream) ([]byte, error) {
+	buffer, err := c.Read()
 	if err != nil {
 		return nil, err
 	}
-	return buffer[:n], nil
+	return buffer, nil
 }
 
-func generalWrite(c net.Conn, buf []byte) error {
+func generalWrite(c jiami.CryptoStream, buf []byte) error {
 	_, err := c.Write(buf)
 	return err
 }
 
-func Sock5(conn net.Conn) (string, error) {
+func Sock5(conn jiami.CryptoStream) (string, error) {
 	// step1
 	buf0, err0 := generalRead(conn)
 	if err0 != nil {
 		return "", SOCK5_PROTO_ERR
 	}
-	Unpack(buf0)
 	if buf0[0] != 0x05 || buf0[1] != 0x01 ||
 		buf0[2] != 0x00 {
 		return "", SOCK5_PROTO_ERR
 	}
 	// step2
 	buf2 := []byte{0x05, 0x00}
-	Pack(buf2)
 	err1 := generalWrite(conn, buf2)
 	if err1 != nil {
 		return "", SOCK5_PROTO_ERR
@@ -107,7 +84,6 @@ func Sock5(conn net.Conn) (string, error) {
 	if err != nil {
 		return "", SOCK5_PROTO_ERR
 	}
-	Unpack(buf3)
 	if buf3[0] != 0x05 || buf3[1] != 0x01 || buf3[2] != 0x00 {
 		return "", SOCK5_PROTO_ERR
 	}
@@ -143,8 +119,6 @@ func Sock5(conn net.Conn) (string, error) {
 		0x05, 0x00, 0x00, 0x01,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
-	Pack(rep)
-
 	err = generalWrite(conn, rep)
 	if err != nil {
 		return "", SOCK5_PROTO_ERR
@@ -152,24 +126,21 @@ func Sock5(conn net.Conn) (string, error) {
 	return host_port, nil
 }
 
-func RemoteRead(conn net.Conn, targetconn net.Conn) {
+func RemoteRead(conn jiami.CryptoStream, targetconn net.Conn) {
 	defer func() {
 		conn.Close()
 		targetconn.Close()
 	}()
-
-	data := make([]byte, DATA_LEN)
 	for {
-		n, err := conn.Read(data)
+		data, err := conn.Read()
 		if err != nil {
 			return
 		}
-		Unpack(data[:n])
-		targetconn.Write(data[:n])
+		targetconn.Write(data)
 	}
 }
 
-func RemoteWriter(conn net.Conn, targetconn net.Conn) {
+func RemoteWriter(conn jiami.CryptoStream, targetconn net.Conn) {
 	defer func() {
 		conn.Close()
 		targetconn.Close()
@@ -183,7 +154,6 @@ func RemoteWriter(conn net.Conn, targetconn net.Conn) {
 			}
 			return
 		}
-		Pack(data[:n])
 		conn.Write(data[:n])
 	}
 }

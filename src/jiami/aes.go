@@ -80,7 +80,7 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	log.Println(pkglen, buffer)
+	log.Println(pkglen, ciphertextbuffer)
 	return len(d), nil
 }
 

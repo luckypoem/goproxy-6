@@ -65,7 +65,7 @@ func (self *aesSupport) Read() ([]byte, error) {
 	// log.Println("Read", pkglen, buffer)
 	res, err := self.Decrypt(buffer)
 	if len(res) == 0 {
-		log.Fatalln(res)
+		log.Fatalln(res, buffer)
 	}
 	log.Println("Read d", res)
 	return res, err

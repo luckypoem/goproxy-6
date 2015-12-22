@@ -62,7 +62,7 @@ func (self *aesSupport) Read() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println(pkglen, buffer)
+	log.Println("Read", pkglen, buffer)
 	return self.Decrypt(buffer)
 }
 
@@ -80,7 +80,7 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	log.Println(pkglen, ciphertextbuffer)
+	log.Println("Write", pkglen, ciphertextbuffer)
 	return len(d), nil
 }
 

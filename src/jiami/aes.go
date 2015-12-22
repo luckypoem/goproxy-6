@@ -87,7 +87,7 @@ func (self *aesSupport) Close() error {
 }
 
 func (self *aesSupport) Encrypt(src []byte) ([]byte, error) {
-	src = PKCS5Padding(src, aes.BlockSize)
+	src = Padding(src, aes.BlockSize)
 	if len(src)%aes.BlockSize != 0 {
 		return nil, errors.New("crypto/cipher: input not full blocks")
 	}
@@ -120,5 +120,5 @@ func (self *aesSupport) Decrypt(decryptText []byte) ([]byte, error) {
 	}
 	mode := cipher.NewCBCDecrypter(cblock, iv)
 	mode.CryptBlocks(decryptText, decryptText)
-	return PKCS5UnPadding(decryptText), nil
+	return UnPadding(decryptText), nil
 }

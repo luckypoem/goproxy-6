@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"io"
+	_ "io"
 	"jiami"
+	"log"
 	"net"
 	"strconv"
 )
@@ -25,13 +26,13 @@ func LocalReader(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 		b.Close()
 		r.Close()
 	}()
-
 	data := make([]byte, DATA_LEN)
 	for {
 		n, err := b.Read(data)
 		if err != nil {
 			return
 		}
+		log.Println("LocalReader", n)
 		r.Write(data[:n])
 	}
 }
@@ -46,6 +47,7 @@ func LocalWriter(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 		if err != nil {
 			return
 		}
+		log.Println("LocalWriter", len(data))
 		b.Write(data)
 	}
 }
@@ -136,6 +138,7 @@ func RemoteRead(conn jiami.CryptoStream, targetconn net.Conn) {
 		if err != nil {
 			return
 		}
+		log.Println("RemoteRead", len(data))
 		targetconn.Write(data)
 	}
 }
@@ -149,11 +152,9 @@ func RemoteWriter(conn jiami.CryptoStream, targetconn net.Conn) {
 	for {
 		n, err := targetconn.Read(data)
 		if err != nil {
-			if err == io.EOF {
-				return
-			}
 			return
 		}
+		log.Println("RemoteWriter", n)
 		conn.Write(data[:n])
 	}
 }

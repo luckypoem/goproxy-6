@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const initplaintext = "Hello World!!你好"
+const initplaintext = "1111111111111111"
 
 func TestAES0(t *testing.T) {
 	key := LoadAesKeyFile("./key")

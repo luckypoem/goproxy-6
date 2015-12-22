@@ -3,7 +3,7 @@ package jiami
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
+	_ "crypto/rand"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -13,9 +13,10 @@ import (
 
 const (
 	// AES-256
-	Keysize    = 32
-	Vectorsize = aes.BlockSize
+	Keysize = 32
 )
+
+var iv []byte = []byte("123456789kiooopo")
 
 type aesSupport struct {
 	key       []byte
@@ -78,6 +79,9 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 		return -1, err
 	}
 	var pkglen int16 = int16(len(ciphertextbuffer))
+	if pkglen <= 0 {
+		return -1, errors.New("Encrypt error")
+	}
 	err = binary.Write(self.iohandler, binary.BigEndian, &pkglen)
 	if err != nil {
 		return -1, err
@@ -99,17 +103,20 @@ func (self *aesSupport) Encrypt(src []byte) ([]byte, error) {
 	if len(src)%aes.BlockSize != 0 {
 		return nil, errors.New("crypto/cipher: input not full blocks")
 	}
-	encryptText := make([]byte, aes.BlockSize+len(src))
-	iv := encryptText[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-	cblock, err := aes.NewCipher(self.key)
-	if err != nil {
-		log.Panicln("aes.NewCipher: " + err.Error())
-	}
-	mode := cipher.NewCBCEncrypter(cblock, iv)
-	mode.CryptBlocks(encryptText[aes.BlockSize:], src)
+	// encryptText := make([]byte, aes.BlockSize+len(src))
+	// iv := encryptText[:aes.BlockSize]
+	// if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+	// 	return nil, err
+	// }
+	// cblock, err := aes.NewCipher(self.key)
+	// if err != nil {
+	// 	log.Panicln("aes.NewCipher: " + err.Error())
+	// }
+	// mode := cipher.NewCBCEncrypter(cblock, iv)
+	// mode.CryptBlocks(encryptText[aes.BlockSize:], src)
+	encryptText := make([]byte, len(src))
+	mode := cipher.NewCBCEncrypter(self.block, iv)
+	mode.CryptBlocks(encryptText, src)
 	return encryptText, nil
 }
 
@@ -117,16 +124,11 @@ func (self *aesSupport) Decrypt(decryptText []byte) ([]byte, error) {
 	if len(decryptText) < aes.BlockSize {
 		return nil, errors.New("crypto/cipher: ciphertext too short")
 	}
-	iv := decryptText[:aes.BlockSize]
-	decryptText = decryptText[aes.BlockSize:]
 	if len(decryptText)%aes.BlockSize != 0 {
 		return nil, errors.New("crypto/cipher: ciphertext is not a multiple of the block size")
 	}
-	cblock, err := aes.NewCipher(self.key)
-	if err != nil {
-		log.Panicln("aes.NewCipher: " + err.Error())
-	}
-	mode := cipher.NewCBCDecrypter(cblock, iv)
-	mode.CryptBlocks(decryptText, decryptText)
-	return UnPadding(decryptText), nil
+	mode := cipher.NewCBCDecrypter(self.block, iv)
+	ret := make([]byte, len(decryptText))
+	mode.CryptBlocks(ret, decryptText)
+	return UnPadding(ret), nil
 }

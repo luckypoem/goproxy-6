@@ -3,7 +3,7 @@ package jiami
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	_ "crypto/rand"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -15,8 +15,6 @@ const (
 	// AES-256
 	Keysize = 32
 )
-
-var iv []byte = []byte("123456789kiooopo")
 
 type aesSupport struct {
 	key       []byte
@@ -67,18 +65,10 @@ func (self *aesSupport) Read() ([]byte, error) {
 		}
 		c += int16(n)
 	}
-	log.Println("读到：", pkglen, buffer)
-	res, err := self.Decrypt(buffer)
-	if len(res) == 0 {
-		self.Close()
-		log.Fatalln(res, buffer)
-	}
-	log.Println("Read d", res)
-	return res, err
+	return self.Decrypt(buffer)
 }
 
 func (self *aesSupport) Write(d []byte) (int, error) {
-	log.Println("Write d", d)
 	ciphertextbuffer, err := self.Encrypt(d)
 	if err != nil {
 		return -1, err
@@ -87,7 +77,6 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if pkglen <= 0 {
 		return -1, errors.New("Encrypt error")
 	}
-	log.Println("加密后：", pkglen, ciphertextbuffer)
 	err = binary.Write(self.iohandler, binary.BigEndian, &pkglen)
 	if err != nil {
 		return -1, err
@@ -96,7 +85,6 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	// log.Println("Write", pkglen, ciphertextbuffer)
 	return len(d), nil
 }
 
@@ -104,37 +92,45 @@ func (self *aesSupport) Close() error {
 	return self.iohandler.Close()
 }
 
-func (self *aesSupport) Encrypt(src []byte) ([]byte, error) {
-	src = Padding(src, aes.BlockSize)
-	if len(src)%aes.BlockSize != 0 {
-		return nil, errors.New("crypto/cipher: input not full blocks")
+func (self *aesSupport) Encrypt(data []byte) ([]byte, error) {
+	// 进行数据填充
+	data = Padding(data, aes.BlockSize)
+	// 判断密文是否是加密块整数倍
+	if len(data)%aes.BlockSize != 0 {
+		return nil, errors.New("jiami: input not full blocks")
 	}
-	// encryptText := make([]byte, aes.BlockSize+len(src))
-	// iv := encryptText[:aes.BlockSize]
-	// if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-	// 	return nil, err
-	// }
-	// cblock, err := aes.NewCipher(self.key)
-	// if err != nil {
-	// 	log.Panicln("aes.NewCipher: " + err.Error())
-	// }
-	// mode := cipher.NewCBCEncrypter(cblock, iv)
-	// mode.CryptBlocks(encryptText[aes.BlockSize:], src)
-	encryptText := make([]byte, len(src))
+	// 构造一个密文+初始向量的空间
+	encryptText := make([]byte, aes.BlockSize+len(data))
+	iv := encryptText[:aes.BlockSize]
+	// 获取一个随机的初始向量
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
+	// 设置加密模式
 	mode := cipher.NewCBCEncrypter(self.block, iv)
-	mode.CryptBlocks(encryptText, src)
+	// 加密
+	mode.CryptBlocks(encryptText[aes.BlockSize:], data)
 	return encryptText, nil
 }
 
-func (self *aesSupport) Decrypt(decryptText []byte) ([]byte, error) {
-	if len(decryptText) < aes.BlockSize {
-		return nil, errors.New("crypto/cipher: ciphertext too short")
+func (self *aesSupport) Decrypt(data []byte) ([]byte, error) {
+	// 提取初始向量
+	iv := data[:aes.BlockSize]
+	// 提取密文
+	ciphertext := data[aes.BlockSize:]
+	// 判断密文是否小于加密块大小
+	if len(ciphertext) < aes.BlockSize {
+		return nil, errors.New("jiami: ciphertext too short")
 	}
-	if len(decryptText)%aes.BlockSize != 0 {
-		return nil, errors.New("crypto/cipher: ciphertext is not a multiple of the block size")
+	// 判断密文是否是加密块整数倍
+	if len(ciphertext)%aes.BlockSize != 0 {
+		return nil, errors.New("jiami: input not full blocks")
 	}
+	// 解密模式
 	mode := cipher.NewCBCDecrypter(self.block, iv)
-	ret := make([]byte, len(decryptText))
-	mode.CryptBlocks(ret, decryptText)
+	ret := make([]byte, len(ciphertext))
+	// 解密
+	mode.CryptBlocks(ret, ciphertext)
+	// 取消填充
 	return UnPadding(ret), nil
 }

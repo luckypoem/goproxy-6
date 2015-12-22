@@ -32,7 +32,6 @@ func LocalReader(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 		if err != nil {
 			return
 		}
-		log.Println("LocalReader", n)
 		r.Write(data[:n])
 	}
 }
@@ -47,7 +46,6 @@ func LocalWriter(ls *LocalService, b net.Conn, r jiami.CryptoStream) {
 		if err != nil {
 			return
 		}
-		log.Println("LocalWriter", len(data))
 		b.Write(data)
 	}
 }
@@ -138,7 +136,6 @@ func RemoteRead(conn jiami.CryptoStream, targetconn net.Conn) {
 		if err != nil {
 			return
 		}
-		log.Println("RemoteRead", len(data))
 		targetconn.Write(data)
 	}
 }
@@ -154,7 +151,6 @@ func RemoteWriter(conn jiami.CryptoStream, targetconn net.Conn) {
 		if err != nil {
 			return
 		}
-		log.Println("RemoteWriter", n)
 		conn.Write(data[:n])
 	}
 }

@@ -79,10 +79,12 @@ func (self *aesSupport) Write(d []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
+
 	var pkglen int16 = int16(len(ciphertextbuffer))
 	if pkglen <= 0 {
 		return -1, errors.New("Encrypt error")
 	}
+	log.Println("加密后：", pkglen, ciphertextbuffer)
 	err = binary.Write(self.iohandler, binary.BigEndian, &pkglen)
 	if err != nil {
 		return -1, err

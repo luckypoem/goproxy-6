@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	_ "io"
-	"jiami"
+	"github.com/yuya008/goproxy/jiami"
 	_ "log"
 	"net"
 	"strconv"

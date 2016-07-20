@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"server"
+	"github.com/yuya008/goproxy/server"
 )
 
 // 标准输出输出启动参数

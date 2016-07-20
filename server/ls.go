@@ -1,7 +1,7 @@
 package server
 
 import (
-	"jiami"
+	"github.com/yuya008/goproxy/jiami"
 	"log"
 	"net"
 )

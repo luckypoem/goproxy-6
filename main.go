@@ -20,7 +20,7 @@ func printArgs(args *Args)  {
 	if args.RemoteHost != "" {
 		log.Println("远程服务监听主机及端口配置:", args.RemoteHost)
 	}
-	log.Println("AES加密Key文件路径:%s", args.AESKey)
+	log.Println("AES加密Key文件路径:", args.AESKey)
 	if args.Mode == "local" {
 		log.Println("启动初始化本地服务器")
 	} else {

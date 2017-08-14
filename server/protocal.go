@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/yuya008/goproxy/jiami"
+	"log"
 	"net"
 	"strconv"
 )
@@ -67,6 +68,7 @@ func Sock5(conn jiami.CryptoStream) (string, error) {
 	if err0 != nil {
 		return "", SOCK5_PROTO_ERR
 	}
+	log.Println(buf0)
 	if buf0[0] != 0x05 || buf0[1] != 0x01 ||
 		buf0[2] != 0x00 {
 		return "", SOCK5_PROTO_ERR

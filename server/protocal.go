@@ -65,10 +65,9 @@ func generalWrite(c jiami.CryptoStream, buf []byte) error {
 func Sock5(conn jiami.CryptoStream) (string, error) {
 	// step1
 	buf0, err0 := generalRead(conn)
-	if err0 != nil {
+	if err0 != nil || len(buf0) < 3 {
 		return "", SOCK5_PROTO_ERR
 	}
-	log.Println(buf0)
 	if buf0[0] != 0x05 || buf0[1] != 0x01 ||
 		buf0[2] != 0x00 {
 		return "", SOCK5_PROTO_ERR
@@ -81,7 +80,7 @@ func Sock5(conn jiami.CryptoStream) (string, error) {
 	}
 	// step3
 	buf3, err := generalRead(conn)
-	if err != nil {
+	if err != nil || len(buf3) < 3 {
 		return "", SOCK5_PROTO_ERR
 	}
 	if buf3[0] != 0x05 || buf3[1] != 0x01 || buf3[2] != 0x00 {

@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"github.com/yuya008/goproxy/server"
+	"goproxy/server"
 	"github.com/mkideal/cli"
 	"os"
 )

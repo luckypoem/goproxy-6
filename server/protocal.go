@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"github.com/yuya008/goproxy/jiami"
+	"goproxy/jiami"
 	"net"
 	"strconv"
 )
